@@ -25,6 +25,7 @@
 
 package andrask.sun.tools.jconsole;
 
+import static andrask.sun.tools.jconsole.Settings.KEY_MBEANS_VIEW_WIDTH;
 
 import java.awt.BorderLayout;
 import java.awt.event.MouseAdapter;
@@ -152,8 +153,21 @@ public class MBeansTab extends Tab implements
         // set up the split pane with the MBean tree and MBean sheet panels
         setLayout(new BorderLayout());
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        mainSplit.setDividerLocation(160);
+        mainSplit.setDividerLocation(Settings.getInt(KEY_MBEANS_VIEW_WIDTH, 250));
         mainSplit.setBorder(BorderFactory.createEmptyBorder());
+        
+        mainSplit.addPropertyChangeListener(new PropertyChangeListener() {
+            public void propertyChange(PropertyChangeEvent changeEvent) {
+                JSplitPane sourceSplitPane = (JSplitPane) changeEvent.getSource();
+                String propertyName = changeEvent.getPropertyName();
+                if (propertyName.equals(JSplitPane.LAST_DIVIDER_LOCATION_PROPERTY)) {
+                  int current = sourceSplitPane.getDividerLocation();
+                  Settings.setInt(KEY_MBEANS_VIEW_WIDTH, current);
+                }
+              }
+            }
+        );
+
         
         // set up the MBean tree panel (left pane)
         tree = new XTree(this);

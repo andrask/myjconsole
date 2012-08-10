@@ -5,8 +5,7 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.Properties;
-
-import com.sun.istack.internal.logging.Logger;
+import java.util.logging.Logger;
 
 public class Settings {
 	public static Properties getProperties() {
@@ -23,7 +22,7 @@ public class Settings {
 		try {
 			properties.store(new FileOutputStream(getPropertiesFile()), "My JConsole properties");
 		} catch (Exception e) {
-			Logger.getLogger(Settings.class).warning("Could not save preferences", e);
+			Logger.getLogger(Settings.class.toString()).warning("Could not save preferences");
 		}
 	}
 	
@@ -68,4 +67,5 @@ public class Settings {
 	}
 
 	public static final String KEY_MBEANS_VIEW_WIDTH = "myjconsole.mbeansview.width"; 
+	public static final String KEY_THREADS_PLOT_SPLITTERPOSITION = "myjconsole.threadsview.splitterposition"; 
 }

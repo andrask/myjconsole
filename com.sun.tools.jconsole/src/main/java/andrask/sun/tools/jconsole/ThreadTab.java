@@ -43,6 +43,7 @@ import sun.awt.*;
 
 import static andrask.sun.tools.jconsole.OverviewPanel.*;
 import static andrask.sun.tools.jconsole.Resources.*;
+import static andrask.sun.tools.jconsole.Settings.KEY_MBEANS_VIEW_WIDTH;
 import static andrask.sun.tools.jconsole.Utilities.*;
 
 
@@ -102,12 +103,14 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
         setLayout(new BorderLayout(0, 0));
         setBorder(new EmptyBorder(4, 4, 3, 4));
 
+        
         JPanel topPanel     = new JPanel(new BorderLayout());
         JPanel plotterPanel = new JPanel(new VariableGridLayout(0, 1, 4, 4, true, true));
 
-        add(topPanel, BorderLayout.NORTH);
-        add(plotterPanel,  BorderLayout.CENTER);
-
+        add(topPanel);
+        add(plotterPanel);
+        
+        
         JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 5));
         topPanel.add(controlPanel, BorderLayout.CENTER);
 
@@ -118,7 +121,12 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
         setAccessibleName(threadMeter.plotter,
                           getText("ThreadTab.threadPlotter.accessibleName"));
 
-        plotterPanel.add(threadMeter);
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        plotterPanel.add(splitPane, BorderLayout.CENTER);
+        splitPane.setDividerLocation(Settings.getInt(Settings.KEY_THREADS_PLOT_SPLITTERPOSITION, 100));
+        splitPane.setBorder(BorderFactory.createEmptyBorder());
+
+        splitPane.add(threadMeter, JSplitPane.TOP, 0);
 
         timeComboBox = new TimeComboBox(threadMeter.plotter);
         controlPanel.add(new LabeledComponent(Resources.getText("Time Range:"),
@@ -179,7 +187,7 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
         firstTabPanel.add(firstTabToolPanel, BorderLayout.SOUTH);
         threadListTabbedPane.addTab(Resources.getText("Threads"), firstTabPanel);
 
-        plotterPanel.add(threadListTabbedPane);
+        splitPane.add(threadListTabbedPane, JSplitPane.BOTTOM, 0);
     }
 
     private long oldThreads[] = new long[0];

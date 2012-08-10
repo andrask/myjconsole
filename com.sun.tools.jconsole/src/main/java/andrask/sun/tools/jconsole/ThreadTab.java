@@ -35,6 +35,8 @@ import javax.swing.*;
 import javax.swing.border.*;
 import javax.swing.event.*;
 
+import org.omg.CORBA.TIMEOUT;
+
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.List;
@@ -158,8 +160,38 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
         threadsSplitPane.setOneTouchExpandable(true);
         threadsSplitPane.setBorder(null);
 
-        JPanel firstTabPanel = new JPanel(new BorderLayout());
-        firstTabPanel.setOpaque(false);
+        threadListTabbedPane.addTab(Resources.getText("Threads"), getThreadsPanel());
+
+        threadListTabbedPane.addTab("Stack traces", getStackTracesPanel());
+
+        splitPane.add(threadListTabbedPane, JSplitPane.BOTTOM, 0);
+    }
+
+	private JPanel getStackTracesPanel() {
+		JPanel secondTabPanel = new JPanel(new BorderLayout());
+        secondTabPanel.setOpaque(false);
+        
+        JPanel firstTabToolPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
+        firstTabToolPanel.setOpaque(false);
+
+        JButton getStackTracesButton = new JButton("Get stacktraces");
+        getStackTracesButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				refreshStackTraces();
+			}
+		});
+        firstTabToolPanel.add(getStackTracesButton);
+
+        stackTraceDisplay = new JTextArea();
+        
+        secondTabPanel.add(stackTraceDisplay, BorderLayout.CENTER);
+        secondTabPanel.add(firstTabToolPanel, BorderLayout.SOUTH);
+        
+		return secondTabPanel;
+	}
+
+    private Component getThreadsPanel() {
+        JPanel firstTabPanel = getStackTracesPanel();
 
         JPanel firstTabToolPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
         firstTabToolPanel.setOpaque(false);
@@ -185,11 +217,36 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
 
         firstTabPanel.add(threadsSplitPane, BorderLayout.CENTER);
         firstTabPanel.add(firstTabToolPanel, BorderLayout.SOUTH);
-        threadListTabbedPane.addTab(Resources.getText("Threads"), firstTabPanel);
-
-        splitPane.add(threadListTabbedPane, JSplitPane.BOTTOM, 0);
+        
+        return firstTabPanel;
     }
-
+    
+	private void refreshStackTraces() {
+		workerAdd(new Runnable() {
+			public void run() {
+				ProxyClient proxyClient = vmPanel.getProxyClient();
+				final StringBuilder sb = new StringBuilder();
+				ThreadMXBean threadMBean;
+				try {
+					threadMBean = proxyClient.getThreadMXBean();
+					ThreadInfo ti = null;
+					MonitorInfo[] monitors = null;
+					ThreadInfo[] infos = threadMBean.dumpAllThreads(true, true);
+					for (ThreadInfo t : infos) {
+						sb.append(t.toString());
+					}
+					SwingUtilities.invokeLater(new Runnable() {
+						public void run() {
+							stackTraceDisplay.setText(sb.toString());
+						}
+					});
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		});
+	}
+    
     private long oldThreads[] = new long[0];
 
     public SwingWorker<?, ?> newSwingWorker() {
@@ -323,6 +380,7 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
     }
 
     long lastSelected = -1;
+	private JTextArea stackTraceDisplay;
 
     public void valueChanged(ListSelectionEvent ev) {
         ThreadJList list = (ThreadJList)ev.getSource();
@@ -350,7 +408,7 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
                         if (proxyClient.isLockUsageSupported() &&
                               threadMBean.isObjectMonitorUsageSupported()) {
                             // VMs that support the monitor usage monitoring
-                            ThreadInfo[] infos = threadMBean.dumpAllThreads(true, false);
+                            ThreadInfo[] infos = threadMBean.getThreadInfo(new long[] {threadID}, true, false);
                             for (ThreadInfo info : infos) {
                                 if (info.getThreadId() == threadID) {
                                     ti = info;

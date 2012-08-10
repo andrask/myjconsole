@@ -7,8 +7,12 @@ Eliminate the annoying featurelessness of Jconsole
 
 - MBean tab:
  - save splitter position (feature #1)
+ - (IN PROGRESS) thread stack traces tab
  - (TODO) open mbean tree to the first non singular level (where there is more than one item registered)
  - (TODO) open all mbeans down to the Attributes and Operation level (* key on keypad)
+ - (TODO) return value listing for operations
+ - (TODO) do not swallow any exceptions from operations
+ - (TODO) exception return value dialog should be copiable
 
 - Threads view
  - find threads that are locked on Future.get() calls

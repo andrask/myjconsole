@@ -35,6 +35,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.beans.*;
 import java.io.*;
+import java.lang.management.ManagementFactory;
 import java.util.Set;
 import javax.management.*;
 import javax.swing.*;
@@ -61,7 +62,7 @@ public class MBeansTab extends Tab implements
         addPropertyChangeListener(this);
         setupTab();
     }
-
+    
     public XDataViewer getDataViewer() {
         return viewer;
     }

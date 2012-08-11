@@ -79,7 +79,6 @@ public class XTree extends JTree {
         addKeyListener(new KeyListener() {
 			
 			public void keyTyped(KeyEvent e) {
-				System.out.println("Key " + e.getKeyCode() + " ("+e.getKeyChar()+")");
 				if (e.getKeyChar() == '*') {
 					expandToLast(XTree.this.getSelectionPath(), false);
 				}
@@ -94,7 +93,6 @@ public class XTree extends JTree {
         addTreeExpansionListener(new TreeExpansionListener() {
 			
 			public void treeExpanded(TreeExpansionEvent event) {
-				System.out.println("Expand: " + event.getPath());
 				expandToLast(event.getPath(), true);
 			}
 			
@@ -110,14 +108,15 @@ public class XTree extends JTree {
     	
     	String nodeString = node.toString();
 		int childCount = node.getChildCount();
-		if (    ((childCount >= 0 && !unanimousOnly) || (unanimousOnly && childCount == 1)) 
-				&& !nodeString.equals("Attributes") && !nodeString.equals("Notifications") && !nodeString.equals("Operations")) {
-    		for (Enumeration e = node.children(); e.hasMoreElements();) {
-    			TreeNode n = (TreeNode) e.nextElement();
-    			TreePath path = selectionPath.pathByAddingChild(n);
-    			expandToLast(path, unanimousOnly);
-    		}
-    		this.expandPath(selectionPath);
+		if (!nodeString.equals("Attributes") && !nodeString.equals("Notifications") && !nodeString.equals("Operations")) {
+			if ((childCount >= 0 && !unanimousOnly) || (unanimousOnly && childCount == 1)) {
+	    		for (Enumeration e = node.children(); e.hasMoreElements();) {
+	    			TreeNode n = (TreeNode) e.nextElement();
+	    			TreePath path = selectionPath.pathByAddingChild(n);
+	    			expandToLast(path, unanimousOnly);
+	    		}
+			}
+   			this.expandPath(selectionPath);
     	}
 	}
     

@@ -37,6 +37,8 @@ import javax.swing.event.*;
 
 import org.omg.CORBA.TIMEOUT;
 
+import andrask.jconsole.utils.CustomThreadInfo;
+
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.List;
@@ -88,9 +90,12 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
                         Center: controlPanel (FlowLayout)
                                     timeComboBox
 
-            Center: plotterPanel (BorderLayout)
-
-                        Center: plotter
+            Center: sliptPane
+            			TOP	plotterPanel (BorderLayout)
+            					Center: plotter
+            			BOTTOM threadListTabbedPane
+            					Tab: Threads
+            					Tab: Stack traces
 
     */
 
@@ -171,21 +176,22 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
 		JPanel secondTabPanel = new JPanel(new BorderLayout());
         secondTabPanel.setOpaque(false);
         
-        JPanel firstTabToolPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
-        firstTabToolPanel.setOpaque(false);
+        JPanel tabToolPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
+        tabToolPanel.setOpaque(false);
 
-        JButton getStackTracesButton = new JButton("Get stacktraces");
+        JButton getStackTracesButton = new JButton("Get stack traces");
         getStackTracesButton.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 				refreshStackTraces();
 			}
 		});
-        firstTabToolPanel.add(getStackTracesButton);
+        tabToolPanel.add(getStackTracesButton);
 
         stackTraceDisplay = new JTextArea();
+        JScrollPane stackTraceDisplayScrollPane = new JScrollPane(stackTraceDisplay);
         
-        secondTabPanel.add(stackTraceDisplay, BorderLayout.CENTER);
-        secondTabPanel.add(firstTabToolPanel, BorderLayout.SOUTH);
+        secondTabPanel.add(stackTraceDisplayScrollPane, BorderLayout.CENTER);
+        secondTabPanel.add(tabToolPanel, BorderLayout.SOUTH);
         
 		return secondTabPanel;
 	}
@@ -233,7 +239,7 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
 					MonitorInfo[] monitors = null;
 					ThreadInfo[] infos = threadMBean.dumpAllThreads(true, true);
 					for (ThreadInfo t : infos) {
-						sb.append(t.toString());
+						sb.append(new CustomThreadInfo(t).toString());
 					}
 					SwingUtilities.invokeLater(new Runnable() {
 						public void run() {

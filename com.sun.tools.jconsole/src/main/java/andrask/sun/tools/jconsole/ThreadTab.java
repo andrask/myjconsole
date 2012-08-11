@@ -197,7 +197,7 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
 	}
 
     private Component getThreadsPanel() {
-        JPanel firstTabPanel = getStackTracesPanel();
+        JPanel firstTabPanel = new JPanel(new BorderLayout());
 
         JPanel firstTabToolPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
         firstTabToolPanel.setOpaque(false);

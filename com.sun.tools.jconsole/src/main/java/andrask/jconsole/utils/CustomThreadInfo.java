@@ -2,6 +2,7 @@
  * Andras Kovi 2012.
  * 
  * Excerpts from ThreadInfo.java
+ * GNU GPL v2
  */
 package andrask.jconsole.utils;
 

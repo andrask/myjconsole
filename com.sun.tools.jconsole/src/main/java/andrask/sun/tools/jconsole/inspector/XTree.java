@@ -26,10 +26,15 @@
 package andrask.sun.tools.jconsole.inspector;
 
 import java.awt.EventQueue;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.util.*;
 import javax.management.*;
 import javax.swing.*;
+import javax.swing.event.TreeExpansionEvent;
+import javax.swing.event.TreeExpansionListener;
 import javax.swing.tree.*;
+
 import andrask.sun.tools.jconsole.JConsole;
 import andrask.sun.tools.jconsole.MBeansTab;
 import andrask.sun.tools.jconsole.Resources;
@@ -55,7 +60,7 @@ public class XTree extends JTree {
         }
     }
 
-    private MBeansTab mbeansTab;
+    private final MBeansTab mbeansTab;
 
     private Map<String, DefaultMutableTreeNode> nodes =
             new HashMap<String, DefaultMutableTreeNode>();
@@ -70,9 +75,49 @@ public class XTree extends JTree {
         setRootVisible(false);
         setShowsRootHandles(true);
         ToolTipManager.sharedInstance().registerComponent(this);
+        addKeyListener(new KeyListener() {
+			
+			public void keyTyped(KeyEvent e) {
+				System.out.println("Key " + e.getKeyCode() + " ("+e.getKeyChar()+")");
+				if (e.getKeyChar() == '*') {
+					expandToLast(XTree.this.getSelectionPath());
+				}
+			}
+			
+			public void keyReleased(KeyEvent e) {
+			}
+			
+			public void keyPressed(KeyEvent e) {
+			}
+		});
+        addTreeExpansionListener(new TreeExpansionListener() {
+			
+			public void treeExpanded(TreeExpansionEvent event) {
+				System.out.println("Expand: " + event.getPath());
+			}
+			
+			public void treeCollapsed(TreeExpansionEvent event) {
+				// TODO Auto-generated method stub
+				
+			}
+		});
     }
 
-    /**
+    protected void expandToLast(TreePath selectionPath) {
+    	TreeNode node = (TreeNode) selectionPath.getLastPathComponent();
+    	
+    	String nodeString = node.toString();
+		if (node.getChildCount() >= 0 && !nodeString.equals("Attributes") && !nodeString.equals("Notifications") && !nodeString.equals("Operations")) {
+    		for (Enumeration e = node.children(); e.hasMoreElements();) {
+    			TreeNode n = (TreeNode) e.nextElement();
+    			TreePath path = selectionPath.pathByAddingChild(n);
+    			expandToLast(path);
+    		}
+    		this.expandPath(selectionPath);
+    	}
+	}
+    
+	/**
      * This method removes the node from its parent
      */
     // Call on EDT

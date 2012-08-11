@@ -11,7 +11,7 @@ Eliminate the annoying featurelessness of Jconsole
  - open all mbeans on unanimous path 
  - (TODO) return value listing for operations
  - (TODO) do not swallow any exceptions from operations
- - (TODO) exception return value dialog should be copiable
+ - (TODO) exception return value dialog should be copyable
 
 - Threads view
  - (TODO) find threads that are locked on Future.get() calls

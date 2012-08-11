@@ -28,6 +28,7 @@ package andrask.sun.tools.jconsole.inspector;
 import java.awt.EventQueue;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.lang.management.ManagementFactory;
 import java.util.*;
 import javax.management.*;
 import javax.swing.*;
@@ -80,7 +81,7 @@ public class XTree extends JTree {
 			public void keyTyped(KeyEvent e) {
 				System.out.println("Key " + e.getKeyCode() + " ("+e.getKeyChar()+")");
 				if (e.getKeyChar() == '*') {
-					expandToLast(XTree.this.getSelectionPath());
+					expandToLast(XTree.this.getSelectionPath(), false);
 				}
 			}
 			
@@ -94,6 +95,7 @@ public class XTree extends JTree {
 			
 			public void treeExpanded(TreeExpansionEvent event) {
 				System.out.println("Expand: " + event.getPath());
+				expandToLast(event.getPath(), true);
 			}
 			
 			public void treeCollapsed(TreeExpansionEvent event) {
@@ -103,15 +105,17 @@ public class XTree extends JTree {
 		});
     }
 
-    protected void expandToLast(TreePath selectionPath) {
+    protected void expandToLast(TreePath selectionPath, boolean unanimousOnly) {
     	TreeNode node = (TreeNode) selectionPath.getLastPathComponent();
     	
     	String nodeString = node.toString();
-		if (node.getChildCount() >= 0 && !nodeString.equals("Attributes") && !nodeString.equals("Notifications") && !nodeString.equals("Operations")) {
+		int childCount = node.getChildCount();
+		if (    ((childCount >= 0 && !unanimousOnly) || (unanimousOnly && childCount == 1)) 
+				&& !nodeString.equals("Attributes") && !nodeString.equals("Notifications") && !nodeString.equals("Operations")) {
     		for (Enumeration e = node.children(); e.hasMoreElements();) {
     			TreeNode n = (TreeNode) e.nextElement();
     			TreePath path = selectionPath.pathByAddingChild(n);
-    			expandToLast(path);
+    			expandToLast(path, unanimousOnly);
     		}
     		this.expandPath(selectionPath);
     	}

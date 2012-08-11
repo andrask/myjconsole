@@ -9,6 +9,7 @@ Eliminate the annoying featurelessness of Jconsole
  - save splitter position (feature #1)
  - thread stack traces tab
  - open all mbeans down to the Attributes and Operation level (* key on keypad)
+ - open all mbeans on unanimous path 
  - (TODO) return value listing for operations
  - (TODO) do not swallow any exceptions from operations
  - (TODO) exception return value dialog should be copiable

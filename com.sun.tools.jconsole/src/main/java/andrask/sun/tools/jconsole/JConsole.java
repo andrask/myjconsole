@@ -25,30 +25,58 @@
 
 package andrask.sun.tools.jconsole;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.beans.*;
-import java.io.*;
-import java.lang.reflect.InvocationTargetException;
-import java.net.*;
-import java.util.*;
+import static andrask.sun.tools.jconsole.Resources.getMnemonicInt;
+import static andrask.sun.tools.jconsole.Resources.getText;
+import static andrask.sun.tools.jconsole.Utilities.setAccessibleDescription;
+
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Dimension;
+import java.awt.GraphicsConfiguration;
+import java.awt.Insets;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.beans.PropertyVetoException;
+import java.io.File;
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.MalformedURLException;
+import java.net.NoRouteToHostException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
 
-import javax.swing.*;
-import javax.swing.border.*;
-import javax.swing.event.*;
-import javax.swing.plaf.*;
-import javax.management.remote.JMXServiceURL;
-import javax.management.remote.JMXConnector;
-import javax.security.auth.login.FailedLoginException;
 import javax.net.ssl.SSLHandshakeException;
-
-import com.sun.tools.jconsole.JConsolePlugin;
+import javax.security.auth.login.FailedLoginException;
+import javax.swing.JButton;
+import javax.swing.JDesktopPane;
+import javax.swing.JFrame;
+import javax.swing.JInternalFrame;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JRootPane;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import javax.swing.border.Border;
+import javax.swing.event.InternalFrameEvent;
+import javax.swing.event.InternalFrameListener;
+import javax.swing.plaf.BorderUIResource;
 
 import sun.net.util.IPAddressUtil;
 
-import static andrask.sun.tools.jconsole.Resources.*;
-import static andrask.sun.tools.jconsole.Utilities.*;
+import com.sun.tools.jconsole.JConsolePlugin;
 
 @SuppressWarnings("serial")
 public class JConsole extends JFrame

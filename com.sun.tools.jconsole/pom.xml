@@ -51,19 +51,6 @@
 				<jconsolejar>${java.home}/../lib/jconsole.jar</jconsolejar>
 			</properties>
 		</profile>
-		<profile>
-			<id>mac-profile</id>
-			<activation>
-				<activeByDefault>false</activeByDefault>
-				<file>
-					<exists>${java.home}/../Classes/classes.jar</exists>
-				</file>
-			</activation>
-			<properties>
-				<toolsjar>${java.home}/../Classes/classes.jar</toolsjar>
-				<jconsolejar>${java.home}/../Classes/classes.jar</jconsolejar>
-			</properties>
-		</profile>
 	</profiles>
 
 	<build>
@@ -95,7 +82,7 @@
 				<version>1.1.1</version>
 				<executions>
 					<execution>
-						<phase>test</phase>
+						<phase>verify</phase>
 						<goals>
 							<goal>java</goal>
 						</goals>

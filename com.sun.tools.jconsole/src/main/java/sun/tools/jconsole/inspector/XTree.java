@@ -109,6 +109,11 @@ public class XTree extends JTree {
     	String nodeString = node.toString();
 		int childCount = node.getChildCount();
 		if (!nodeString.equals("Attributes") && !nodeString.equals("Notifications") && !nodeString.equals("Operations")) {
+			ComparableDefaultMutableTreeNode realNode = (ComparableDefaultMutableTreeNode) node;
+			if (childCount == 0 && ((XNodeInfo)realNode.getUserObject()).getType().equals(XNodeInfo.Type.MBEAN)) {
+				// Non fetched MBean node
+				return;
+			}
 			if ((childCount >= 0 && !unanimousOnly) || (unanimousOnly && childCount == 1)) {
 	    		for (Enumeration e = node.children(); e.hasMoreElements();) {
 	    			TreeNode n = (TreeNode) e.nextElement();
@@ -124,7 +129,9 @@ public class XTree extends JTree {
     public void expandAllNodes() {
     	synchronized (nodes) {
     		for (DefaultMutableTreeNode node : nodes.values()) {
-				expandPath(new TreePath(node.getPath()));
+    			if (hasNonMetadataNodes(node)) {
+    				expandPath(new TreePath(node.getPath()));
+    			}
     		}
 		}
     }
@@ -217,7 +224,7 @@ public class XTree extends JTree {
             DefaultTreeModel model = (DefaultTreeModel) getModel();
             Token token = dn.getToken(0);
             String hashKey = dn.getHashKey(token);
-            System.out.println("***** Remove " + dn + " : " + xmbeans.remove(hashKey));
+            //System.out.println("***** Remove " + dn + " : " + xmbeans.remove(hashKey));
             node = nodes.get(hashKey);
             if ((node != null) && (!node.isRoot())) {
                 if (hasNonMetadataNodes(node)) {
@@ -407,7 +414,7 @@ public class XTree extends JTree {
         childNode = createDnNode(dn, token, xmbean);
         nodes.put(hashKey, childNode);
         
-        System.out.println("***** Add " + dn + "("+hashKey+")" + (xmbeans.put(hashKey, childNode)));
+        //System.out.println("***** Add " + dn + "("+hashKey+")" + (xmbeans.put(hashKey, childNode)));
         
         // Add intermediate non MBean nodes
         //

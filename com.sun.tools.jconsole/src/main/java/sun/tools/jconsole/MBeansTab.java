@@ -253,6 +253,7 @@ public class MBeansTab extends Tab implements
 		tree.setCellRenderer(new XTreeRenderer());
 		tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
 		tree.addTreeSelectionListener(this);
+		tree.addTreeWillExpandListener(this);
 		tree.addMouseListener(ml);
 		theScrollPane = new JScrollPane(tree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
 				JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
@@ -261,6 +262,7 @@ public class MBeansTab extends Tab implements
 		filteredTree.setCellRenderer(new XTreeRenderer());
 		filteredTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
 		filteredTree.addTreeSelectionListener(this);
+		filteredTree.addTreeWillExpandListener(this);
 		filteredTree.addMouseListener(ml);
 		theFilteredScrollPane = new JScrollPane(filteredTree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
 				JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
@@ -352,11 +354,11 @@ public class MBeansTab extends Tab implements
     public void treeWillExpand(TreeExpansionEvent e)
             throws ExpandVetoException {
         TreePath path = e.getPath();
-        if (!tree.hasBeenExpanded(path)) {
+        if (!getTree().hasBeenExpanded(path)) {
             DefaultMutableTreeNode node =
                     (DefaultMutableTreeNode) path.getLastPathComponent();
-            if (sheet.isMBeanNode(node) && !tree.hasMetadataNodes(node)) {
-                tree.addMetadataNodes(node);
+            if (sheet.isMBeanNode(node) && !getTree().hasMetadataNodes(node)) {
+            	getTree().addMetadataNodes(node);
             }
         }
     }

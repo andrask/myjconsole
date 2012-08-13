@@ -83,7 +83,7 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
     PlotterPanel threadMeter;
     TimeComboBox timeComboBox;
     JTabbedPane threadListTabbedPane;
-    DefaultListModel<Long> listModel;
+    DefaultListModel listModel;
     JTextField filterTF;
     JLabel messageLabel;
     JSplitPane threadsSplitPane;
@@ -167,14 +167,14 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
                                               getMnemonicInt("Time Range:"),
                                               timeComboBox));
 
-        listModel = new DefaultListModel<Long>();
+        listModel = new DefaultListModel();
 
         JTextArea textArea = new JTextArea();
         textArea.setBorder(thinEmptyBorder);
         textArea.setEditable(false);
         setAccessibleName(textArea,
                           getText("ThreadTab.threadInfo.accessibleName"));
-        JList<Long> list = new ThreadJList(listModel, textArea);
+        JList list = new ThreadJList(listModel, textArea);
 
         Dimension di = new Dimension(super.getPreferredSize());
         di.width = Math.min(di.width, 200);
@@ -557,13 +557,13 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
 
                             if (deadlockedThreads != null) {
                                 for (int i = 0; i < deadlockedThreads.length; i++) {
-                                    DefaultListModel<Long> listModel = new DefaultListModel<Long>();
+                                    DefaultListModel listModel = new DefaultListModel();
                                     JTextArea textArea = new JTextArea();
                                     textArea.setBorder(thinEmptyBorder);
                                     textArea.setEditable(false);
                                     setAccessibleName(textArea,
                                         getText("ThreadTab.threadInfo.accessibleName"));
-                                    JList<Long> list = new ThreadJList(listModel, textArea);
+                                    JList list = new ThreadJList(listModel, textArea);
                                     JScrollPane threadlistSP = new JScrollPane(list);
                                     JScrollPane textAreaSP = new JScrollPane(textArea);
                                     threadlistSP.setBorder(null);
@@ -689,10 +689,10 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
 
 
 
-    private class ThreadJList extends JList<Long> {
+    private class ThreadJList extends JList {
         private JTextArea textArea;
 
-        ThreadJList(DefaultListModel<Long> listModel, JTextArea textArea) {
+        ThreadJList(DefaultListModel listModel, JTextArea textArea) {
             super(listModel);
 
             this.textArea = textArea;
@@ -702,7 +702,7 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
             addListSelectionListener(ThreadTab.this);
             setCellRenderer(new DefaultListCellRenderer() {
             	@Override
-                public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                public Component getListCellRendererComponent(JList list, Object value, int index,
                                                               boolean isSelected, boolean cellHasFocus) {
                     super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 

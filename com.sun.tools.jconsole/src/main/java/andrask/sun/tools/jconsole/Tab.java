@@ -25,11 +25,10 @@
 
 package andrask.sun.tools.jconsole;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.beans.*;
+import java.awt.Dimension;
 
-import javax.swing.*;
+import javax.swing.JPanel;
+import javax.swing.SwingWorker;
 
 public abstract class Tab extends JPanel {
     private String name;

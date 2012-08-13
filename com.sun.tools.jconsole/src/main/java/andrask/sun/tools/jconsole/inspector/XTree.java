@@ -64,7 +64,7 @@ public class XTree extends JTree {
     private final MBeansTab mbeansTab;
 
     private Map<String, DefaultMutableTreeNode> nodes =
-            new HashMap<String, DefaultMutableTreeNode>();
+            Collections.synchronizedMap(new HashMap<String, DefaultMutableTreeNode>());
 
     public XTree(MBeansTab mbeansTab) {
         this(new DefaultMutableTreeNode("MBeanTreeRootNode"), mbeansTab);
@@ -120,6 +120,14 @@ public class XTree extends JTree {
     	}
 	}
     
+    
+    public void expandAllNodes() {
+    	synchronized (nodes) {
+    		for (DefaultMutableTreeNode node : nodes.values()) {
+				expandPath(new TreePath(node.getPath()));
+    		}
+		}
+    }
 	/**
      * This method removes the node from its parent
      */

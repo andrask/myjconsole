@@ -21,30 +21,64 @@
  * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
  * or visit www.oracle.com if you need additional information or have any
  * questions.
+ * 
+ * Modified: Andras Kovi 2012.
  */
 
 package sun.tools.jconsole;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.io.*;
-import java.lang.management.*;
-import java.lang.reflect.*;
+import static sun.tools.jconsole.Resources.getMnemonicInt;
+import static sun.tools.jconsole.Resources.getText;
+import static sun.tools.jconsole.Utilities.setAccessibleName;
 
-import javax.swing.*;
-import javax.swing.border.*;
-import javax.swing.event.*;
-
-import java.util.*;
-import java.util.concurrent.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
+import java.io.IOException;
+import java.lang.management.MonitorInfo;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.UndeclaredThrowableException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ExecutionException;
 
-import sun.awt.*;
+import javax.swing.AbstractButton;
+import javax.swing.BorderFactory;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.DefaultListModel;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
+import javax.swing.UIManager;
+import javax.swing.border.Border;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 
-import static sun.tools.jconsole.OverviewPanel.*;
-import static sun.tools.jconsole.Resources.*;
-import static sun.tools.jconsole.Utilities.*;
-
+import andrask.jconsole.utils.CustomThreadInfo;
+import andrask.sun.tools.jconsole.Settings;
 
 @SuppressWarnings("serial")
 class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSelectionListener {
@@ -55,7 +89,7 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
     JTextField filterTF;
     JLabel messageLabel;
     JSplitPane threadsSplitPane;
-    HashMap<Long, String> nameCache = new HashMap<Long, String>();
+    HashMap<Long, ThreadInfo> nameCache = new HashMap<Long, ThreadInfo>();
 
     private ThreadOverviewPanel overviewPanel;
     private boolean plotterListening = false;
@@ -85,9 +119,12 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
                         Center: controlPanel (FlowLayout)
                                     timeComboBox
 
-            Center: plotterPanel (BorderLayout)
-
-                        Center: plotter
+            Center: sliptPane
+            			TOP	plotterPanel (BorderLayout)
+            					Center: plotter
+            			BOTTOM threadListTabbedPane
+            					Tab: Threads
+            					Tab: Stack traces
 
     */
 
@@ -118,7 +155,12 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
         setAccessibleName(threadMeter.plotter,
                           getText("ThreadTab.threadPlotter.accessibleName"));
 
-        plotterPanel.add(threadMeter);
+        JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        plotterPanel.add(splitPane, BorderLayout.CENTER);
+        splitPane.setDividerLocation(Settings.getInt(Settings.KEY_THREADS_PLOT_SPLITTERPOSITION, 100));
+        splitPane.setBorder(BorderFactory.createEmptyBorder());
+
+        splitPane.add(threadMeter, JSplitPane.TOP, 0);
 
         timeComboBox = new TimeComboBox(threadMeter.plotter);
         controlPanel.add(new LabeledComponent(Resources.getText("Time Range:"),
@@ -150,6 +192,38 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
         threadsSplitPane.setOneTouchExpandable(true);
         threadsSplitPane.setBorder(null);
 
+        threadListTabbedPane.addTab(Resources.getText("Threads"), getThreadsPanel());
+
+        threadListTabbedPane.addTab("Stack traces", getStackTracesPanel());
+
+        splitPane.add(threadListTabbedPane, JSplitPane.BOTTOM, 0);
+    }
+
+	private JPanel getStackTracesPanel() {
+		JPanel secondTabPanel = new JPanel(new BorderLayout());
+        secondTabPanel.setOpaque(false);
+        
+        JPanel tabToolPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
+        tabToolPanel.setOpaque(false);
+
+        JButton getStackTracesButton = new JButton("Get stack traces");
+        getStackTracesButton.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				refreshStackTraces();
+			}
+		});
+        tabToolPanel.add(getStackTracesButton);
+
+        stackTraceDisplay = new JTextArea();
+        JScrollPane stackTraceDisplayScrollPane = new JScrollPane(stackTraceDisplay);
+        
+        secondTabPanel.add(stackTraceDisplayScrollPane, BorderLayout.CENTER);
+        secondTabPanel.add(tabToolPanel, BorderLayout.SOUTH);
+        
+		return secondTabPanel;
+	}
+
+    private Component getThreadsPanel() {
         JPanel firstTabPanel = new JPanel(new BorderLayout());
         firstTabPanel.setOpaque(false);
 
@@ -177,11 +251,34 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
 
         firstTabPanel.add(threadsSplitPane, BorderLayout.CENTER);
         firstTabPanel.add(firstTabToolPanel, BorderLayout.SOUTH);
-        threadListTabbedPane.addTab(Resources.getText("Threads"), firstTabPanel);
-
-        plotterPanel.add(threadListTabbedPane);
+        
+        return firstTabPanel;
     }
-
+    
+	private void refreshStackTraces() {
+		workerAdd(new Runnable() {
+			public void run() {
+				ProxyClient proxyClient = vmPanel.getProxyClient();
+				final StringBuilder sb = new StringBuilder();
+				ThreadMXBean threadMBean;
+				try {
+					threadMBean = proxyClient.getThreadMXBean();
+					ThreadInfo[] infos = threadMBean.dumpAllThreads(true, true);
+					for (ThreadInfo t : infos) {
+						sb.append(new CustomThreadInfo(t).toString());
+					}
+					SwingUtilities.invokeLater(new Runnable() {
+						public void run() {
+							stackTraceDisplay.setText(sb.toString());
+						}
+					});
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		});
+	}
+    
     private long oldThreads[] = new long[0];
 
     public SwingWorker<?, ?> newSwingWorker() {
@@ -196,7 +293,7 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
             private int tlCount;
             private int tpCount;
             private long ttCount;
-            private long[] threads;
+            private long[] threadIds;
             private long timeStamp;
 
             public Boolean doInBackground() {
@@ -211,18 +308,28 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
                         ttCount = 0L;
                     }
 
-                    threads = threadMBean.getAllThreadIds();
-                    for (long newThread : threads) {
+                    threadIds = threadMBean.getAllThreadIds();
+                    long[] newThreadIds = new long[threadIds.length];
+                    int numNewThreads = 0;
+                    for (long newThread : threadIds) {
                         if (nameCache.get(newThread) == null) {
-                            ThreadInfo ti = threadMBean.getThreadInfo(newThread);
-                            if (ti != null) {
-                                String name = ti.getThreadName();
-                                if (name != null) {
-                                    nameCache.put(newThread, name);
-                                }
-                            }
+                        	newThreadIds[numNewThreads++] = newThread;
                         }
                     }
+                    
+                    long[] newThreadIdsTrimmed = new long[numNewThreads];
+                    System.arraycopy(newThreadIds, 0, newThreadIdsTrimmed, 0, numNewThreads);
+                    
+                    ThreadInfo[] threadInfos = threadMBean.getThreadInfo(newThreadIdsTrimmed);
+                    
+					for (ThreadInfo threadInfo : threadInfos) {
+						if (threadInfo != null) {
+							String name = threadInfo.getThreadName();
+							if (name != null) {
+								nameCache.put(threadInfo.getThreadId(), threadInfo);
+							}
+						}
+					}
                     timeStamp = System.currentTimeMillis();
                     return true;
                 } catch (IOException e) {
@@ -256,25 +363,26 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
                 String filter = filterTF.getText().toLowerCase(Locale.ENGLISH);
                 boolean doFilter = (filter.length() > 0);
 
-                ArrayList<Long> l = new ArrayList<Long>();
-                for (long t : threads) {
-                    l.add(t);
+                ArrayList<Long> threadIdList = new ArrayList<Long>();
+                for (long t : threadIds) {
+                    threadIdList.add(t);
                 }
-                Iterator<Long> iterator = l.iterator();
+                Iterator<Long> iterator = threadIdList.iterator();
                 while (iterator.hasNext()) {
                     long newThread = iterator.next();
-                    String name = nameCache.get(newThread);
+                    ThreadInfo threadInfo = nameCache.get(newThread);
+                    String name = getThreadListLabel(threadInfo);
                     if (doFilter && name != null &&
                         name.toLowerCase(Locale.ENGLISH).indexOf(filter) < 0) {
 
                         iterator.remove();
                     }
                 }
-                long[] newThreads = threads;
-                if (l.size() < threads.length) {
-                    newThreads = new long[l.size()];
+                long[] newThreads = threadIds;
+                if (threadIdList.size() < threadIds.length) {
+                    newThreads = new long[threadIdList.size()];
                     for (int i = 0; i < newThreads.length; i++) {
-                        newThreads[i] = l.get(i);
+                        newThreads[i] = threadIdList.get(i);
                     }
                 }
 
@@ -315,6 +423,7 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
     }
 
     long lastSelected = -1;
+	private JTextArea stackTraceDisplay;
 
     public void valueChanged(ListSelectionEvent ev) {
         ThreadJList list = (ThreadJList)ev.getSource();
@@ -342,7 +451,7 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
                         if (proxyClient.isLockUsageSupported() &&
                               threadMBean.isObjectMonitorUsageSupported()) {
                             // VMs that support the monitor usage monitoring
-                            ThreadInfo[] infos = threadMBean.dumpAllThreads(true, false);
+                            ThreadInfo[] infos = threadMBean.getThreadInfo(new long[] {threadID}, true, false);
                             for (ThreadInfo info : infos) {
                                 if (info.getThreadId() == threadID) {
                                     ti = info;
@@ -405,6 +514,10 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
         }
     }
 
+    private String getThreadListLabel(ThreadInfo threadInfo) {
+    	return threadInfo.getThreadId() + "\t " + threadInfo.getThreadName();
+    }
+    
     private void doUpdate() {
         workerAdd(new Runnable() {
             public void run() {
@@ -453,8 +566,8 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
                     SwingUtilities.invokeLater(new Runnable() {
                         public void run() {
                             // Remove old deadlock tabs
-                            while (threadListTabbedPane.getTabCount() > 1) {
-                                threadListTabbedPane.removeTabAt(1);
+                            while (threadListTabbedPane.getTabCount() > 2) {
+                                threadListTabbedPane.removeTabAt(2);
                             }
 
                             if (deadlockedThreads != null) {
@@ -603,14 +716,16 @@ class ThreadTab extends Tab implements ActionListener, DocumentListener, ListSel
 
             addListSelectionListener(ThreadTab.this);
             setCellRenderer(new DefaultListCellRenderer() {
+            	@Override
                 public Component getListCellRendererComponent(JList list, Object value, int index,
                                                               boolean isSelected, boolean cellHasFocus) {
                     super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 
                     if (value != null) {
-                        String name = nameCache.get(value);
-                        if (name == null) {
-                            name = value.toString();
+                    	String name = value.toString();
+                        ThreadInfo threadInfo = nameCache.get(value);
+                        if (threadInfo != null) {
+                        	name = getThreadListLabel(threadInfo);
                         }
                         setText(name);
                     }

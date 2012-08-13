@@ -25,10 +25,15 @@
 
 package sun.tools.jconsole.inspector;
 
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.io.IOException;
 import java.util.*;
+
 import javax.management.*;
 import javax.swing.*;
+import javax.swing.event.TreeExpansionEvent;
+import javax.swing.event.TreeExpansionListener;
 import javax.swing.tree.*;
 import sun.tools.jconsole.JConsole;
 import sun.tools.jconsole.MBeansTab;
@@ -56,9 +61,13 @@ public class XTree extends JTree {
         }
     }
     private MBeansTab mbeansTab;
-    private Map<String, DefaultMutableTreeNode> nodes =
-            new HashMap<String, DefaultMutableTreeNode>();
-
+    private Map<String, DefaultMutableTreeNode> nodes = new HashMap<String, DefaultMutableTreeNode>();
+    private Map<String, DefaultMutableTreeNode> xmbeans = new HashMap<String, DefaultMutableTreeNode>();
+    
+	public synchronized Map<String, DefaultMutableTreeNode> getXmbeans() {
+		return new HashMap<String, DefaultMutableTreeNode>(xmbeans);
+	}
+    
     public XTree(MBeansTab mbeansTab) {
         this(new DefaultMutableTreeNode("MBeanTreeRootNode"), mbeansTab);
     }
@@ -69,9 +78,57 @@ public class XTree extends JTree {
         setRootVisible(false);
         setShowsRootHandles(true);
         ToolTipManager.sharedInstance().registerComponent(this);
+        addKeyListener(new KeyListener() {
+			
+			public void keyTyped(KeyEvent e) {
+				if (e.getKeyChar() == '*') {
+					expandToLast(XTree.this.getSelectionPath(), false);
+				}
+			}
+			
+			public void keyReleased(KeyEvent e) {
+			}
+			
+			public void keyPressed(KeyEvent e) {
+			}
+		});
+        addTreeExpansionListener(new TreeExpansionListener() {
+			
+			public void treeExpanded(TreeExpansionEvent event) {
+				expandToLast(event.getPath(), true);
+			}
+			
+			public void treeCollapsed(TreeExpansionEvent event) {
+			}
+		});
     }
 
-    /**
+    protected void expandToLast(TreePath selectionPath, boolean unanimousOnly) {
+    	TreeNode node = (TreeNode) selectionPath.getLastPathComponent();
+    	
+    	String nodeString = node.toString();
+		int childCount = node.getChildCount();
+		if (!nodeString.equals("Attributes") && !nodeString.equals("Notifications") && !nodeString.equals("Operations")) {
+			if ((childCount >= 0 && !unanimousOnly) || (unanimousOnly && childCount == 1)) {
+	    		for (Enumeration e = node.children(); e.hasMoreElements();) {
+	    			TreeNode n = (TreeNode) e.nextElement();
+	    			TreePath path = selectionPath.pathByAddingChild(n);
+	    			expandToLast(path, unanimousOnly);
+	    		}
+			}
+   			this.expandPath(selectionPath);
+    	}
+	}
+    
+    
+    public void expandAllNodes() {
+    	synchronized (nodes) {
+    		for (DefaultMutableTreeNode node : nodes.values()) {
+				expandPath(new TreePath(node.getPath()));
+    		}
+		}
+    }
+	/**
      * This method removes the node from its parent
      */
     // Call on EDT
@@ -143,6 +200,7 @@ public class XTree extends JTree {
         root.removeAllChildren();
         model.nodeStructureChanged(root);
         nodes.clear();
+        xmbeans.clear();
     }
 
     // Call on EDT
@@ -152,12 +210,14 @@ public class XTree extends JTree {
         // with the given MBean and recursively all the node parents
         // which are leaves and non XMBean.
         //
+    	
         DefaultMutableTreeNode node = null;
         Dn dn = new Dn(mbean);
         if (dn.getTokenCount() > 0) {
             DefaultTreeModel model = (DefaultTreeModel) getModel();
             Token token = dn.getToken(0);
             String hashKey = dn.getHashKey(token);
+            System.out.println("***** Remove " + dn + " : " + xmbeans.remove(hashKey));
             node = nodes.get(hashKey);
             if ((node != null) && (!node.isRoot())) {
                 if (hasNonMetadataNodes(node)) {
@@ -318,7 +378,7 @@ public class XTree extends JTree {
     }
 
     // Call on EDT
-    private synchronized void addMBeanToView(
+    public synchronized void addMBeanToView(
             ObjectName mbean, XMBean xmbean, Dn dn) {
 
         DefaultMutableTreeNode childNode = null;
@@ -346,7 +406,9 @@ public class XTree extends JTree {
         //
         childNode = createDnNode(dn, token, xmbean);
         nodes.put(hashKey, childNode);
-
+        
+        System.out.println("***** Add " + dn + "("+hashKey+")" + (xmbeans.put(hashKey, childNode)));
+        
         // Add intermediate non MBean nodes
         //
         for (int i = 1; i < dn.getTokenCount(); i++) {
@@ -696,7 +758,7 @@ public class XTree extends JTree {
     //
     // Utility classes
     //
-    private static class ComparableDefaultMutableTreeNode
+    public static class ComparableDefaultMutableTreeNode
             extends DefaultMutableTreeNode
             implements Comparable<DefaultMutableTreeNode> {
 
@@ -705,7 +767,7 @@ public class XTree extends JTree {
         }
     }
 
-    private static class Dn implements Comparable<Dn> {
+    public static class Dn implements Comparable<Dn> {
 
         private ObjectName mbean;
         private String domain;

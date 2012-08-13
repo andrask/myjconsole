@@ -21,36 +21,87 @@
  * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
  * or visit www.oracle.com if you need additional information or have any
  * questions.
+ * 
+ * Modified by: Andras Kovi 2012
  */
 
 package sun.tools.jconsole;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.EventQueue;
+import java.awt.FlowLayout;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
-import java.beans.*;
-import java.io.*;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
+import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
-import javax.management.*;
-import javax.swing.*;
-import javax.swing.event.*;
-import javax.swing.tree.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.management.InstanceNotFoundException;
+import javax.management.MBeanServer;
+import javax.management.MBeanServerConnection;
+import javax.management.MBeanServerDelegate;
+import javax.management.MBeanServerNotification;
+import javax.management.Notification;
+import javax.management.NotificationListener;
+import javax.management.ObjectName;
+import javax.swing.BorderFactory;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTextField;
+import javax.swing.OverlayLayout;
+import javax.swing.SwingWorker;
+import javax.swing.UIManager;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.event.TreeExpansionEvent;
+import javax.swing.event.TreeSelectionEvent;
+import javax.swing.event.TreeSelectionListener;
+import javax.swing.event.TreeWillExpandListener;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.ExpandVetoException;
+import javax.swing.tree.TreePath;
+import javax.swing.tree.TreeSelectionModel;
+
 import sun.tools.jconsole.ProxyClient.SnapshotMBeanServerConnection;
-import sun.tools.jconsole.inspector.*;
+import sun.tools.jconsole.inspector.Utils;
+import sun.tools.jconsole.inspector.XDataViewer;
+import sun.tools.jconsole.inspector.XMBean;
+import sun.tools.jconsole.inspector.XNodeInfo;
+import sun.tools.jconsole.inspector.XSheet;
+import sun.tools.jconsole.inspector.XTree;
+import sun.tools.jconsole.inspector.XTree.ComparableDefaultMutableTreeNode;
+import sun.tools.jconsole.inspector.XTree.Dn;
+import sun.tools.jconsole.inspector.XTreeRenderer;
+import andrask.sun.tools.jconsole.Settings;
 
 import com.sun.tools.jconsole.JConsoleContext;
 
 @SuppressWarnings("serial")
 public class MBeansTab extends Tab implements
         NotificationListener, PropertyChangeListener,
-        TreeSelectionListener, TreeWillExpandListener {
+        TreeSelectionListener, TreeWillExpandListener, DocumentListener {
 
     private XTree tree;
     private XSheet sheet;
     private XDataViewer viewer;
 
+
+	private XTree filteredTree;
+	private PromptingTextField filterTF;
+	private JLabel operationLabel;    
+    
     public static String getTabName() {
         return Resources.getText("MBeans");
     }
@@ -59,15 +110,21 @@ public class MBeansTab extends Tab implements
         super(vmPanel, getTabName());
         addPropertyChangeListener(this);
         setupTab();
+        
+        testerThread.start();
     }
 
     public XDataViewer getDataViewer() {
         return viewer;
     }
 
-    public XTree getTree() {
-        return tree;
-    }
+	public XTree getTree() {
+		if (isFiltering) {
+			return filteredTree;
+		} else {
+			return tree;
+		}
+	}
 
     public XSheet getSheet() {
         return sheet;
@@ -174,34 +231,64 @@ public class MBeansTab extends Tab implements
     }
 
     private void setupTab() {
-        // set up the split pane with the MBean tree and MBean sheet panels
-        setLayout(new BorderLayout());
-        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        mainSplit.setDividerLocation(160);
-        mainSplit.setBorder(BorderFactory.createEmptyBorder());
+		// set up the split pane with the MBean tree and MBean sheet panels
+		setLayout(new BorderLayout());
+		JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+		mainSplit.setDividerLocation(Settings.getInt(Settings.KEY_MBEANS_VIEW_WIDTH, 250));
+		mainSplit.setBorder(BorderFactory.createEmptyBorder());
 
-        // set up the MBean tree panel (left pane)
-        tree = new XTree(this);
-        tree.setCellRenderer(new XTreeRenderer());
-        tree.getSelectionModel().setSelectionMode(
-                TreeSelectionModel.SINGLE_TREE_SELECTION);
-        tree.addTreeSelectionListener(this);
-        tree.addTreeWillExpandListener(this);
-        tree.addMouseListener(ml);
-        JScrollPane theScrollPane = new JScrollPane(
-                tree,
-                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        JPanel treePanel = new JPanel(new BorderLayout());
-        treePanel.add(theScrollPane, BorderLayout.CENTER);
-        mainSplit.add(treePanel, JSplitPane.LEFT, 0);
+		mainSplit.addPropertyChangeListener(new PropertyChangeListener() {
+			public void propertyChange(PropertyChangeEvent changeEvent) {
+				JSplitPane sourceSplitPane = (JSplitPane) changeEvent.getSource();
+				String propertyName = changeEvent.getPropertyName();
+				if (propertyName.equals(JSplitPane.LAST_DIVIDER_LOCATION_PROPERTY)) {
+					int current = sourceSplitPane.getDividerLocation();
+					Settings.setInt(Settings.KEY_MBEANS_VIEW_WIDTH, current);
+				}
+			}
+		});
 
-        // set up the MBean sheet panel (right pane)
-        viewer = new XDataViewer(this);
-        sheet = new XSheet(this);
-        mainSplit.add(sheet, JSplitPane.RIGHT, 0);
+		// set up the MBean tree panel (left pane)
+		tree = new XTree(this);
+		tree.setCellRenderer(new XTreeRenderer());
+		tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
+		tree.addTreeSelectionListener(this);
+		tree.addMouseListener(ml);
+		theScrollPane = new JScrollPane(tree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+				JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 
-        add(mainSplit);
+		filteredTree = new XTree(this);
+		filteredTree.setCellRenderer(new XTreeRenderer());
+		filteredTree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
+		filteredTree.addTreeSelectionListener(this);
+		filteredTree.addMouseListener(ml);
+		theFilteredScrollPane = new JScrollPane(filteredTree, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+				JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+
+		treePanel = new JPanel();
+		treePanel.setLayout(new OverlayLayout(treePanel));
+		treePanel.add(theScrollPane);
+
+		mainSplit.add(treePanel, JSplitPane.LEFT, 0);
+
+		// set up the MBean sheet panel (right pane)
+		viewer = new XDataViewer(this);
+		sheet = new XSheet(this);
+		mainSplit.add(sheet, JSplitPane.RIGHT, 0);
+
+		add(mainSplit);
+
+		JPanel tabToolPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
+		tabToolPanel.setOpaque(false);
+
+		filterTF = new PromptingTextField("Filter", 20);
+		filterTF.getDocument().addDocumentListener(this);
+		tabToolPanel.add(filterTF);
+		
+		operationLabel = new JLabel();
+		tabToolPanel.add(operationLabel);
+
+		add(tabToolPanel, BorderLayout.SOUTH);
     }
 
     /* notification listener:  handleNotification */
@@ -278,4 +365,218 @@ public class MBeansTab extends Tab implements
     public void treeWillCollapse(TreeExpansionEvent e)
             throws ExpandVetoException {
     }
+
+	private JScrollPane theFilteredScrollPane;
+	private JScrollPane theScrollPane;
+
+	private class PromptingTextField extends JTextField implements FocusListener {
+		private String prompt;
+		boolean promptRemoved = false;
+		Color fg;
+
+		public PromptingTextField(String prompt, int columns) {
+			super(prompt, columns);
+
+			this.prompt = prompt;
+			updateForeground();
+			addFocusListener(this);
+		}
+
+		@Override
+		public void revalidate() {
+			super.revalidate();
+			updateForeground();
+		}
+
+		private synchronized void updateForeground() {
+			this.fg = UIManager.getColor("TextField.foreground");
+			if (promptRemoved) {
+				setForeground(fg);
+			} else {
+				setForeground(Color.gray);
+			}
+		}
+
+		public synchronized String getText() {
+			if (!promptRemoved) {
+				return "";
+			} else {
+				return super.getText();
+			}
+		}
+
+		public synchronized void focusGained(FocusEvent e) {
+			if (!promptRemoved) {
+				promptRemoved = true;
+				setText("");
+				setForeground(fg);
+			}
+		}
+
+		public synchronized void focusLost(FocusEvent e) {
+			if (promptRemoved && getText().equals("")) {
+				promptRemoved = false;
+				setText(prompt);
+				setForeground(Color.gray);
+			}
+		}
+
+	}
+
+	@Override
+	public void insertUpdate(DocumentEvent e) {
+		updateView();
+	}
+
+	@Override
+	public void removeUpdate(DocumentEvent e) {
+		updateView();
+	}
+
+	@Override
+	public void changedUpdate(DocumentEvent e) {
+		//updateView();
+	}
+
+	protected boolean isFiltering = false;
+
+	protected void updateView() {
+		if (filterTF.getText().isEmpty()) {
+			if (isFiltering) {
+				isFiltering = false;
+				EventQueue.invokeLater(new Runnable() {
+					@Override
+					public void run() {
+						treePanel.removeAll();
+						treePanel.add(theScrollPane);
+						treePanel.repaint();
+					}
+				});
+				updateLabel("");
+			}
+		} else if (!filterTF.getText().isEmpty()) {
+			if (!isFiltering) {
+				isFiltering = true;
+				EventQueue.invokeLater(new Runnable() {
+					@Override
+					public void run() {
+						treePanel.removeAll();
+						treePanel.add(theFilteredScrollPane);
+						treePanel.repaint();
+					}
+				});
+			}
+			updateFilter();
+		}
+	}
+
+	boolean updatePendingForFilter = false;
+	private Collection<DefaultMutableTreeNode> mxbeanNodes;
+	private JPanel treePanel;
+
+	protected void updateFilter() {
+		updatePendingForFilter = true;
+		workerAdd(new Runnable() {
+			@Override
+			public void run() {
+				if (updatePendingForFilter) {
+					updateLabel("Filtering...");
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException e) {
+					}
+				}
+				updatePendingForFilter = false;
+
+				String filterText = filterTF.getText();
+				if (filterText.isEmpty()) {
+					// Filter cleared, no reason to run.
+					return;
+				}
+
+				final Pattern pattern = Pattern.compile(".*" + Matcher.quoteReplacement(filterText) + ".*");
+
+				final Set<XMBean> filteredMBeans = new HashSet<XMBean>();
+
+				mxbeanNodes = tree.getXmbeans().values();
+				for (DefaultMutableTreeNode mbeanNode : mxbeanNodes) {
+					ComparableDefaultMutableTreeNode comparableTreeNode = (ComparableDefaultMutableTreeNode) mbeanNode;
+					XNodeInfo nodeInfo = (XNodeInfo) comparableTreeNode.getUserObject();
+					XMBean data = (XMBean)nodeInfo.getData();
+					if (pattern.matcher(data.getObjectName().toString()).find()) {
+						filteredMBeans.add(data);
+					}
+				}
+				
+
+				filteredTree.removeAll();
+
+				filteredTree.setVisible(false);
+
+				for (XMBean mbeanObject : filteredMBeans) {
+					filteredTree.addMBeanToView(mbeanObject.getObjectName(), mbeanObject, new Dn(mbeanObject.getObjectName()));
+				}
+
+				try {
+					// Need to wait until all nodes added to tree.
+					Thread.sleep(100);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+
+				filteredTree.expandAllNodes();
+
+				filteredTree.setVisible(true);
+				
+				updateLabel("");
+			}
+		});
+	}
+	
+	protected void updateLabel(final String labelText) {
+		EventQueue.invokeLater(new Runnable() {
+			@Override
+			public void run() {
+				operationLabel.setText(labelText);
+			}
+		});
+	}
+	
+	private Thread testerThread = new Thread(new Runnable() {
+		@Override
+		public void run() {
+			try {
+				doIt();
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		public void doIt()  throws Exception {
+			MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
+			
+			AMXBean a = new AMXBean() {
+				@Override
+				public int geta() {
+					return 0;
+				}
+			};
+			
+			while (true) {
+				platformMBeanServer.registerMBean(a, new ObjectName("test:name=a"));
+				
+				Thread.sleep(5000);
+				
+				platformMBeanServer.unregisterMBean(new ObjectName("test:name=a"));
+
+				Thread.sleep(5000);
+			}
+			
+		}
+		
+	});
+	public interface AMXBean {
+		int geta();
+	}
 }

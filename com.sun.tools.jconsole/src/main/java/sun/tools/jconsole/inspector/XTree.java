@@ -35,6 +35,7 @@ import javax.swing.*;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeExpansionListener;
 import javax.swing.tree.*;
+
 import sun.tools.jconsole.JConsole;
 import sun.tools.jconsole.MBeansTab;
 import sun.tools.jconsole.Resources;
@@ -224,7 +225,8 @@ public class XTree extends JTree {
             DefaultTreeModel model = (DefaultTreeModel) getModel();
             Token token = dn.getToken(0);
             String hashKey = dn.getHashKey(token);
-            //System.out.println("***** Remove " + dn + " : " + xmbeans.remove(hashKey));
+            DefaultMutableTreeNode remove = xmbeans.remove(hashKey);
+			//System.out.println("***** Remove " + dn + " : " + remove);
             node = nodes.get(hashKey);
             if ((node != null) && (!node.isRoot())) {
                 if (hasNonMetadataNodes(node)) {
@@ -414,7 +416,8 @@ public class XTree extends JTree {
         childNode = createDnNode(dn, token, xmbean);
         nodes.put(hashKey, childNode);
         
-        //System.out.println("***** Add " + dn + "("+hashKey+")" + (xmbeans.put(hashKey, childNode)));
+        DefaultMutableTreeNode put = xmbeans.put(hashKey, childNode);
+		//System.out.println("***** Add " + dn + "("+hashKey+")" + put);
         
         // Add intermediate non MBean nodes
         //

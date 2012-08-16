@@ -496,7 +496,7 @@ public class MBeansTab extends Tab implements
 					return;
 				}
 
-				final Pattern pattern = Pattern.compile(".*" + Matcher.quoteReplacement(filterText) + ".*");
+				final Pattern pattern = Pattern.compile(".*" + Matcher.quoteReplacement(filterText) + ".*", Pattern.CASE_INSENSITIVE);
 
 				final Set<XMBean> filteredMBeans = new HashSet<XMBean>();
 
